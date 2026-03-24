@@ -32,13 +32,13 @@ npm start
 
 ## Scripts
 
-| Script   | Description                    |
-|----------|--------------------------------|
-| `npm run build` | Compile TypeScript to `dist/`  |
-| `npm run start` | Run production server          |
-| `npm run dev`   | Run with ts-node-dev           |
-| `npm test`      | Run Jest tests                 |
-| `npm run lint`  | Run ESLint                     |
+| Script          | Description                   |
+| --------------- | ----------------------------- |
+| `npm run build` | Compile TypeScript to `dist/` |
+| `npm run start` | Run production server         |
+| `npm run dev`   | Run with ts-node-dev          |
+| `npm test`      | Run Jest tests                |
+| `npm run lint`  | Run ESLint                    |
 
 ## Contributing
 
@@ -54,6 +54,16 @@ GitHub Actions runs on push and pull requests to `main`:
 - Build the project (`npm run build`)
 
 Keep the build passing before merging.
+
+## Database
+
+The backend uses an embedded **SQLite** database (via `better-sqlite3`) — no external service required.
+
+| Environment variable | Default          | Description                                                 |
+| -------------------- | ---------------- | ----------------------------------------------------------- |
+| `DB_PATH`            | `talenttrust.db` | Path to the SQLite file. Use `:memory:` for ephemeral mode. |
+
+Schema migrations run automatically on startup. See [`docs/backend/database.md`](docs/backend/database.md) for full documentation: schema, repository API, configuration, and security notes.
 
 ## License
 
