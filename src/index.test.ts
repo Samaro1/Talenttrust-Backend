@@ -10,13 +10,20 @@ import request from "supertest";
 import { app } from "./index";
 import { getDb, closeDb } from "./db/database";
 
+let originalConsoleError: typeof console.error;
+
 beforeAll(() => {
   // Ensure the DB is initialized with ':memory:' before routes are hit
   getDb(":memory:");
+
+  // Suppress expected Express error logs from polluting the test output
+  originalConsoleError = console.error;
+  jest.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterAll(() => {
   closeDb();
+  console.error = originalConsoleError;
 });
 
 describe("Global / Ops", () => {
