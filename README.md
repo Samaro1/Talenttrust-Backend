@@ -1,6 +1,7 @@
 # TalentTrust Backend
 
-Express API for the TalentTrust decentralized freelancer escrow protocol. Handles contract metadata, reputation, and integration with Stellar/Soroban.
+Express API for the TalentTrust decentralized freelancer escrow protocol.
+Handles contract metadata, reputation, and integration with Stellar/Soroban.
 
 ## Features
 
@@ -13,68 +14,61 @@ Express API for the TalentTrust decentralized freelancer escrow protocol. Handle
 ## Prerequisites
 
 - Node.js 18+
-- npm or yarn
-- Redis 6.0+ (for background job queue)
+- npm
 
 ## Setup
 
 ```bash
-# Clone and enter the repo
 git clone <your-repo-url>
 cd talenttrust-backend
-
-# Install dependencies
 npm install
-
-# Start Redis (required for background jobs)
-# Option 1: Using Docker
-docker run -d -p 6379:6379 redis:7-alpine
-
-# Option 2: Using local Redis
-redis-server
-
-# Configure environment (optional)
-export REDIS_HOST=localhost
-export REDIS_PORT=6379
-export REDIS_PASSWORD=your-password
-
-# Build
-npm run build
-
-# Run tests
-npm test
-
-# Start dev server (with hot reload)
-npm run dev
-
-# Start production server
-npm start
 ```
 
 ## Scripts
 
-| Script   | Description                    |
-|----------|--------------------------------|
-| `npm run build` | Compile TypeScript to `dist/`  |
-| `npm run start` | Run production server          |
-| `npm run dev`   | Run with ts-node-dev           |
-| `npm test`      | Run Jest tests                 |
-| `npm run lint`  | Run ESLint                     |
-
-## Contributing
-
-1. Fork the repo and create a branch from `main`.
-2. Install deps, run tests and build: `npm install && npm test && npm run build`.
-3. Open a pull request. CI runs build (and tests when present) on push/PR to `main`.
+| Script | Description |
+|---|---|
+| `npm run build` | Compile TypeScript to `dist/` |
+| `npm start` | Run production server |
+| `npm run dev` | Run with ts-node-dev (hot reload) |
+| `npm test` | Run Jest tests |
+| `npm run test:ci` | Run tests with coverage enforcement (≥95%) |
+| `npm run lint` | Run ESLint |
+| `npm run lint:fix` | Auto-fix lint issues |
+| `npm run audit:ci` | Fail on HIGH/CRITICAL npm vulnerabilities |
 
 ## CI/CD
 
-GitHub Actions runs on push and pull requests to `main`:
+GitHub Actions runs four gates on every push and pull request to `main`:
 
-- Install dependencies
-- Build the project (`npm run build`)
+1. **Lint** — ESLint with TypeScript-aware rules
+2. **Test** — Jest with ≥95% line/function/statement coverage
+3. **Build** — TypeScript strict compilation (runs after lint + test pass)
+4. **Security Audit** — `npm audit --audit-level=high`
 
-Keep the build passing before merging.
+All four checks must pass before a PR can be merged. See
+[docs/backend/branch-protection.md](docs/backend/branch-protection.md) for
+the recommended GitHub branch protection settings.
+
+## Project Structure
+
+```
+src/
+├── index.ts          # Server entry point
+├── app.ts            # Express app factory
+└── routes/
+    ├── health.ts     # GET /health
+    └── contracts.ts  # GET /api/v1/contracts
+```
+
+See [docs/backend/architecture.md](docs/backend/architecture.md) for design
+decisions and planned integrations.
+
+## Contributing
+
+1. Fork the repo and create a branch: `git checkout -b feature/<ticket>-description`
+2. Make changes, run `npm run lint && npm run test:ci && npm run build`
+3. Open a pull request — CI runs all four gates automatically
 
 ## License
 

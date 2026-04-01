@@ -1,26 +1,16 @@
-import express, { Request, Response } from 'express';
-import { QueueManager, JobType } from './queue';
+/**
+ * @module index
+ * @description Server entry point.
+ *
+ * Bootstraps the Express application and binds it to a port.
+ * Import `createApp` from `./app` in tests — never import this file directly
+ * in test suites, as it starts the HTTP server immediately.
+ */
 
-const app = express();
+import { createApp } from './app';
+
 const PORT = process.env.PORT || 3001;
-const queueManager = QueueManager.getInstance();
-
-app.use(express.json());
-
-/**
- * Health check endpoint
- * Returns service status
- */
-app.get('/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok', service: 'talenttrust-backend' });
-});
-
-/**
- * Get contracts endpoint
- */
-app.get('/api/v1/contracts', (_req: Request, res: Response) => {
-  res.json({ contracts: [] });
-});
+const app = createApp();
 
 /**
  * Enqueue a background job
