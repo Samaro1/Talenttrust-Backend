@@ -104,62 +104,62 @@ describe('DependencyScanService', () => {
 
     it('throws when stdout is not valid JSON', () => {
       const service = new DependencyScanService();
-      expect(() => service.parseAuditOutput('not-json')).toThrow('Failed to parse npm audit output');
+      expect(() => service.parseAuditOutput('not-json')).toThrow(
+        'Failed to parse npm audit output',
+      );
     });
   });
 
-  describe('getReport caching', () => {
-    it('returns the report from runAudit on first call', async () => {
-      const service = new DependencyScanService();
-      const mockReport = service.parseAuditOutput(cleanAuditOutput);
-      jest.spyOn(service as unknown as { runAudit: () => Promise<typeof mockReport> }, 'runAudit')
-        .mockResolvedValue(mockReport);
+  describe('getReport', () => {
+    it('returns the parsed report from the audit runner', async () => {
+      const runner = jest.fn().mockResolvedValue(cleanAuditOutput);
+      const service = new DependencyScanService(runner);
 
-      const result = await service.getReport();
-      expect(result).toEqual(mockReport);
+      const report = await service.getReport();
+
+      expect(report.status).toBe('clean');
+      expect(runner).toHaveBeenCalledTimes(1);
     });
 
     it('returns cached report on second call within TTL', async () => {
-      const service = new DependencyScanService();
-      const mockReport = service.parseAuditOutput(cleanAuditOutput);
-      const runAuditSpy = jest
-        .spyOn(service as unknown as { runAudit: () => Promise<typeof mockReport> }, 'runAudit')
-        .mockResolvedValue(mockReport);
+      const runner = jest.fn().mockResolvedValue(cleanAuditOutput);
+      const service = new DependencyScanService(runner);
 
       await service.getReport();
       await service.getReport();
 
-      expect(runAuditSpy).toHaveBeenCalledTimes(1);
+      expect(runner).toHaveBeenCalledTimes(1);
     });
 
     it('bypasses cache when forceRefresh=true', async () => {
-      const service = new DependencyScanService();
-      const mockReport = service.parseAuditOutput(cleanAuditOutput);
-      const runAuditSpy = jest
-        .spyOn(service as unknown as { runAudit: () => Promise<typeof mockReport> }, 'runAudit')
-        .mockResolvedValue(mockReport);
+      const runner = jest.fn().mockResolvedValue(cleanAuditOutput);
+      const service = new DependencyScanService(runner);
 
       await service.getReport();
       await service.getReport(true);
 
-      expect(runAuditSpy).toHaveBeenCalledTimes(2);
+      expect(runner).toHaveBeenCalledTimes(2);
     });
 
     it('re-fetches after cache TTL expires', async () => {
-      const service = new DependencyScanService();
-      const mockReport = service.parseAuditOutput(cleanAuditOutput);
-      const runAuditSpy = jest
-        .spyOn(service as unknown as { runAudit: () => Promise<typeof mockReport> }, 'runAudit')
-        .mockResolvedValue(mockReport);
+      const runner = jest.fn().mockResolvedValue(cleanAuditOutput);
+      const service = new DependencyScanService(runner);
 
       await service.getReport();
 
-      // Expire the cache by backdating the timestamp
-      (service as unknown as { cacheTimestamp: number }).cacheTimestamp = Date.now() - 6 * 60 * 1000;
+      (service as unknown as { cacheTimestamp: number }).cacheTimestamp =
+        Date.now() - 6 * 60 * 1000;
 
       await service.getReport();
 
-      expect(runAuditSpy).toHaveBeenCalledTimes(2);
+      expect(runner).toHaveBeenCalledTimes(2);
+    });
+
+    it('propagates errors from the audit runner', async () => {
+      const runner = jest.fn().mockRejectedValue(new Error('Failed to run npm audit'));
+      const service = new DependencyScanService(runner);
+
+      await expect(service.getReport()).rejects.toThrow('Failed to run npm audit');
     });
   });
 });

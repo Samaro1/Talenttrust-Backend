@@ -29,9 +29,33 @@ export interface DependencyScanReport {
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+/* istanbul ignore next */
+async function defaultNpmAuditRunner(): Promise<string> {
+  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  try {
+    const result = await execFileAsync(npmCmd, ['audit', '--json', '--omit=dev'], {
+      cwd: process.cwd(),
+    });
+    return result.stdout;
+  } catch (err: unknown) {
+    // npm audit exits non-zero when vulnerabilities exist; stdout is still valid JSON
+    if (
+      err &&
+      typeof err === 'object' &&
+      'stdout' in err &&
+      typeof (err as { stdout: unknown }).stdout === 'string'
+    ) {
+      return (err as { stdout: string }).stdout;
+    }
+    throw new Error('Failed to run npm audit');
+  }
+}
+
 export class DependencyScanService {
   private cachedReport: DependencyScanReport | null = null;
   private cacheTimestamp = 0;
+
+  constructor(private readonly auditRunner: () => Promise<string> = defaultNpmAuditRunner) {}
 
   async getReport(forceRefresh = false): Promise<DependencyScanReport> {
     const now = Date.now();
@@ -39,36 +63,11 @@ export class DependencyScanService {
       return this.cachedReport;
     }
 
-    const report = await this.runAudit();
+    const stdout = await this.auditRunner();
+    const report = this.parseAuditOutput(stdout);
     this.cachedReport = report;
     this.cacheTimestamp = now;
     return report;
-  }
-
-  private async runAudit(): Promise<DependencyScanReport> {
-    const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    let stdout = '';
-
-    try {
-      const result = await execFileAsync(npmCmd, ['audit', '--json', '--omit=dev'], {
-        cwd: process.cwd(),
-      });
-      stdout = result.stdout;
-    } catch (err: unknown) {
-      // npm audit exits non-zero when vulnerabilities exist; stdout is still valid JSON
-      if (
-        err &&
-        typeof err === 'object' &&
-        'stdout' in err &&
-        typeof (err as { stdout: unknown }).stdout === 'string'
-      ) {
-        stdout = (err as { stdout: string }).stdout;
-      } else {
-        throw new Error('Failed to run npm audit');
-      }
-    }
-
-    return this.parseAuditOutput(stdout);
   }
 
   parseAuditOutput(stdout: string): DependencyScanReport {
