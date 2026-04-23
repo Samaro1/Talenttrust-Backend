@@ -1,4 +1,6 @@
 import express, { Request, Response } from 'express';
+import logger from './logger';
+import { registerShutdownHandlers, CloseableConnection, WorkerLike } from './shutdown';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -13,6 +15,14 @@ app.get('/api/v1/contracts', (_req: Request, res: Response) => {
   res.json({ contracts: [] });
 });
 
-app.listen(PORT, () => {
-  console.log(`TalentTrust API listening on http://localhost:${PORT}`);
+const server = app.listen(PORT, () => {
+  logger.info({ port: PORT }, 'server_started');
 });
+
+// ── Downstream connections ────────────────────────────────────────────────────
+const connections: CloseableConnection[] = [];
+
+// ── BullMQ workers ────────────────────────────────────────────────────────────
+const workers: WorkerLike[] = [];
+
+registerShutdownHandlers(server, workers, connections);
