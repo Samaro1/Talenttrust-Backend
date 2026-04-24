@@ -1,6 +1,6 @@
 import axios, { AxiosRequestConfig } from 'axios';
 import { ChaosPolicy } from '../chaos/chaosPolicy';
-import { withRetry, RetryOptions } from '../utils/retry';
+import { RetryOptions, withRetry } from '../utils/retry';
 
 export class DependencyError extends Error {
   constructor(message: string) {
@@ -8,6 +8,8 @@ export class DependencyError extends Error {
     this.name = 'DependencyError';
   }
 }
+
+
 
 export interface UpstreamClientConfig {
   dependencyName: string;
