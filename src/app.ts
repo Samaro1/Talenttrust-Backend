@@ -8,8 +8,7 @@
  * @security
  *  - express.json() body parser is scoped to this app instance only.
  *  - All routes return JSON; no HTML rendering surface.
- *  - Helmet-style headers should be added here when the dependency is
- *    introduced (tracked in docs/backend/security.md).
+ *  - CORS and Helmet security headers are applied via applySecurityMiddleware.
  */
 
 import express, { Request, Response, NextFunction } from 'express';
@@ -17,6 +16,7 @@ import { healthRouter } from './routes/health';
 import contractsModuleRouter from './routes/contracts.routes';
 import reputationRouter from './routes/reputation.routes';
 import { requestIdMiddleware } from './middleware/requestId';
+import { applySecurityMiddleware } from './middleware/security';
 
 /**
  * Creates and configures the Express application.
@@ -25,6 +25,9 @@ import { requestIdMiddleware } from './middleware/requestId';
  */
 export function createApp(): express.Application {
   const app = express();
+
+  // ── Security Middleware ───────────────────────────────────────────────────
+  applySecurityMiddleware(app);
 
   // ── Middleware ────────────────────────────────────────────────────────────
   app.use(express.json());
