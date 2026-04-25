@@ -44,6 +44,18 @@
     "yaml": "^2.8.3",
     "zod": "^3.25.76"
   },
+  "overrides": {
+    "uuid": "^14.0.0",
+    "autocannon": {
+      "uuid": "^9.0.0"
+    },
+    "hyperid": {
+      "uuid": "^9.0.0"
+    },
+    "bullmq": {
+      "uuid": "^9.0.0"
+    }
+  },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
     "@types/cors": "^2.8.17",

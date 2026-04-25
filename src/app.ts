@@ -49,9 +49,14 @@ export function createApp(options: AppFactoryOptions = {}): express.Application 
   // ── Security Middleware ───────────────────────────────────────────────────
   applySecurityMiddleware(app);
 
+  const metricsService = new MetricsService(
+    process.env['SERVICE_NAME'] ?? 'talenttrust-backend',
+  );
+
   // ── Middleware ────────────────────────────────────────────────────────────
   app.use(express.json());
   app.use(requestIdMiddleware);
+  app.use(metricsService.trackHttpRequest.bind(metricsService));
 
   // ── Routes ────────────────────────────────────────────────────────────────
   app.use('/health', healthRouter);
