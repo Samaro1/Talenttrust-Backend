@@ -17,4 +17,6 @@ export const createContractSchema = z.object({
   }),
 });
 
+registry.register('CreateContract', createContractSchema.shape.body);
+
 export type CreateContractDto = z.infer<typeof createContractSchema>['body'];
