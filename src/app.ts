@@ -65,3 +65,9 @@ export function createApp(options: AppFactoryOptions = {}): express.Application 
 
   return app;
 }
+
+/** Shutdown handler for graceful termination. */
+export function shutdownRateLimitStore(): void {
+  rateLimitStore.destroy();
+  console.log('[rateLimit] Store shutdown complete');
+}
