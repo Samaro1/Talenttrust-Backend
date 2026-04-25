@@ -7,6 +7,7 @@
 
 import { QueueManager } from './queue-manager';
 import { JobType } from './types';
+import { RetryPolicyManager } from './retry-manager';
 
 describe('QueueManager', () => {
   let queueManager: QueueManager;
@@ -155,6 +156,60 @@ describe('QueueManager', () => {
       await queueManager.initializeQueue(JobType.EMAIL_NOTIFICATION);
       await queueManager.shutdown();
       await expect(queueManager.shutdown()).resolves.not.toThrow();
+    });
+  });
+
+  describe('Retry Policy Integration', () => {
+    it('should provide access to retry manager', () => {
+      const retryManager = queueManager.getRetryManager();
+      expect(retryManager).toBeInstanceOf(RetryPolicyManager);
+    });
+
+    it('should use retry policies when initializing queues', async () => {
+      const retryManager = queueManager.getRetryManager();
+      
+      // Get default policy for email notifications
+      const emailPolicy = retryManager.getRetryPolicy(JobType.EMAIL_NOTIFICATION);
+      expect(emailPolicy.attempts).toBe(5);
+      expect(emailPolicy.backoff.type).toBe('exponential');
+      
+      // Initialize queue (should use retry policy)
+      await queueManager.initializeQueue(JobType.EMAIL_NOTIFICATION);
+      
+      // Verify policy is still accessible
+      const retrievedPolicy = retryManager.getRetryPolicy(JobType.EMAIL_NOTIFICATION);
+      expect(retrievedPolicy.attempts).toBe(emailPolicy.attempts);
+    });
+
+    it('should allow updating retry policies', async () => {
+      const retryManager = queueManager.getRetryManager();
+      
+      // Update retry policy
+      retryManager.updateRetryPolicy(JobType.EMAIL_NOTIFICATION, {
+        attempts: 7,
+      });
+      
+      const updatedPolicy = retryManager.getRetryPolicy(JobType.EMAIL_NOTIFICATION);
+      expect(updatedPolicy.attempts).toBe(7);
+      
+      // Initialize queue with updated policy
+      await queueManager.initializeQueue(JobType.EMAIL_NOTIFICATION);
+      
+      // Policy should still be updated
+      const currentPolicy = retryManager.getRetryPolicy(JobType.EMAIL_NOTIFICATION);
+      expect(currentPolicy.attempts).toBe(7);
+    });
+
+    it('should provide retry policy statistics', () => {
+      const retryManager = queueManager.getRetryManager();
+      const stats = retryManager.getStatistics();
+      
+      expect(stats).toHaveProperty('totalPolicies');
+      expect(stats).toHaveProperty('customPolicies');
+      expect(stats).toHaveProperty('policiesByType');
+      
+      expect(stats.totalPolicies).toBeGreaterThan(0);
+      expect(Object.keys(stats.policiesByType)).toContain(JobType.EMAIL_NOTIFICATION);
     });
   });
 });

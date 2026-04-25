@@ -9,6 +9,7 @@ import { Queue, Worker, Job, QueueEvents } from 'bullmq';
 import { queueConfig } from './config';
 import { JobType, JobPayload, JobResult } from './types';
 import { jobProcessors } from './processors';
+import { RetryPolicyManager } from './retry-manager';
 
 /**
  * QueueManager handles queue lifecycle and job processing
@@ -20,8 +21,11 @@ export class QueueManager {
   private workers: Map<JobType, Worker> = new Map();
   private queueEvents: Map<JobType, QueueEvents> = new Map();
   private isShuttingDown = false;
+  private retryManager: RetryPolicyManager;
 
-  private constructor() {}
+  private constructor() {
+    this.retryManager = RetryPolicyManager.getInstance();
+  }
 
   /**
    * Get singleton instance of QueueManager
@@ -45,9 +49,10 @@ export class QueueManager {
       return;
     }
 
+    const jobOptions = this.retryManager.getJobOptions(jobType);
     const queue = new Queue(jobType, {
       connection: queueConfig.redis,
-      defaultJobOptions: queueConfig.defaultJobOptions,
+      defaultJobOptions: jobOptions,
     });
 
     const worker = new Worker(
@@ -139,6 +144,15 @@ export class QueueManager {
     queueEvents.on('active', ({ jobId }: { jobId: string | undefined }) => {
       console.log(`[${jobType}] Job ${jobId} is active`);
     });
+  }
+
+  /**
+   * Get access to the retry policy manager for configuration
+   * 
+   * @returns RetryPolicyManager instance
+   */
+  public getRetryManager(): RetryPolicyManager {
+    return this.retryManager;
   }
 
   /**
