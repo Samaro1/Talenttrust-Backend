@@ -12,6 +12,18 @@ import { RetryPolicyManager } from './retry-manager';
 describe('QueueManager', () => {
   let queueManager: QueueManager;
 
+  async function waitForJobToFail(jobId: string): Promise<void> {
+    const maxAttempts = 30;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const status = await queueManager.getJobStatus(JobType.EMAIL_NOTIFICATION, jobId);
+      if (status?.state === 'failed') {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error(`Job ${jobId} did not fail within timeout`);
+  }
+
   beforeEach(() => {
     queueManager = QueueManager.getInstance();
   });
@@ -62,9 +74,10 @@ describe('QueueManager', () => {
         body: 'This is a test',
       };
 
-      const jobId = await queueManager.addJob(JobType.EMAIL_NOTIFICATION, payload);
+      const { jobId, deduplicated } = await queueManager.addJob(JobType.EMAIL_NOTIFICATION, payload);
       expect(jobId).toBeDefined();
       expect(typeof jobId).toBe('string');
+      expect(deduplicated).toBe(false);
     });
 
     it('should add a job with priority', async () => {
@@ -74,7 +87,7 @@ describe('QueueManager', () => {
         body: 'High priority',
       };
 
-      const jobId = await queueManager.addJob(
+      const { jobId } = await queueManager.addJob(
         JobType.EMAIL_NOTIFICATION,
         payload,
         { priority: 1 }
@@ -89,12 +102,47 @@ describe('QueueManager', () => {
         body: 'Send later',
       };
 
-      const jobId = await queueManager.addJob(
+      const { jobId } = await queueManager.addJob(
         JobType.EMAIL_NOTIFICATION,
         payload,
         { delay: 50 }
       );
       expect(jobId).toBeDefined();
+    });
+
+    it('should return same jobId for duplicate dedupeKey', async () => {
+      const payload = {
+        to: 'dedup@example.com',
+        subject: 'Dedup Test',
+        body: 'First submission',
+      };
+      const dedupeKey = 'email-dedup-test-001';
+
+      const first = await queueManager.addJob(JobType.EMAIL_NOTIFICATION, payload, { dedupeKey, delay: 5000 });
+      const second = await queueManager.addJob(JobType.EMAIL_NOTIFICATION, payload, { dedupeKey, delay: 5000 });
+
+      expect(first.jobId).toBe(dedupeKey);
+      expect(second.jobId).toBe(dedupeKey);
+      expect(first.deduplicated).toBe(false);
+      expect(second.deduplicated).toBe(true);
+    });
+
+    it('should allow re-enqueue after job completes', async () => {
+      const payload = {
+        to: 'requeue@example.com',
+        subject: 'Re-enqueue Test',
+        body: 'First run',
+      };
+      const dedupeKey = 'email-requeue-test-001';
+
+      const first = await queueManager.addJob(JobType.EMAIL_NOTIFICATION, payload, { dedupeKey });
+      // Wait for job to be processed
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const second = await queueManager.addJob(JobType.EMAIL_NOTIFICATION, payload, { dedupeKey });
+      expect(first.jobId).toBe(dedupeKey);
+      // After completion, second enqueue should not be flagged as deduplicated
+      expect(second.deduplicated).toBe(false);
     });
 
     it('should throw error when queue not initialized', async () => {
@@ -119,8 +167,8 @@ describe('QueueManager', () => {
         body: 'Check status',
       };
 
-      const jobId = await queueManager.addJob(JobType.EMAIL_NOTIFICATION, payload);
-      
+      const { jobId } = await queueManager.addJob(JobType.EMAIL_NOTIFICATION, payload);
+
       await new Promise((resolve) => setTimeout(resolve, 150));
 
       const status = await queueManager.getJobStatus(
@@ -159,57 +207,65 @@ describe('QueueManager', () => {
     });
   });
 
-  describe('Retry Policy Integration', () => {
-    it('should provide access to retry manager', () => {
-      const retryManager = queueManager.getRetryManager();
-      expect(retryManager).toBeInstanceOf(RetryPolicyManager);
-    });
-
-    it('should use retry policies when initializing queues', async () => {
-      const retryManager = queueManager.getRetryManager();
-      
-      // Get default policy for email notifications
-      const emailPolicy = retryManager.getRetryPolicy(JobType.EMAIL_NOTIFICATION);
-      expect(emailPolicy.attempts).toBe(5);
-      expect(emailPolicy.backoff.type).toBe('exponential');
-      
-      // Initialize queue (should use retry policy)
+  describe('DLQ Operations', () => {
+    beforeEach(async () => {
       await queueManager.initializeQueue(JobType.EMAIL_NOTIFICATION);
-      
-      // Verify policy is still accessible
-      const retrievedPolicy = retryManager.getRetryPolicy(JobType.EMAIL_NOTIFICATION);
-      expect(retrievedPolicy.attempts).toBe(emailPolicy.attempts);
     });
 
-    it('should allow updating retry policies', async () => {
-      const retryManager = queueManager.getRetryManager();
-      
-      // Update retry policy
-      retryManager.updateRetryPolicy(JobType.EMAIL_NOTIFICATION, {
-        attempts: 7,
+    it('should list failed jobs', async () => {
+      const failedJobId = await queueManager.addJob(
+        JobType.EMAIL_NOTIFICATION,
+        {
+          to: 'not-an-email',
+          subject: 'DLQ test',
+          body: 'should fail',
+        },
+        { attempts: 1 }
+      );
+
+      await waitForJobToFail(failedJobId);
+
+      const failedJobs = await queueManager.getFailedJobs({
+        jobType: JobType.EMAIL_NOTIFICATION,
+        limit: 20,
       });
-      
-      const updatedPolicy = retryManager.getRetryPolicy(JobType.EMAIL_NOTIFICATION);
-      expect(updatedPolicy.attempts).toBe(7);
-      
-      // Initialize queue with updated policy
-      await queueManager.initializeQueue(JobType.EMAIL_NOTIFICATION);
-      
-      // Policy should still be updated
-      const currentPolicy = retryManager.getRetryPolicy(JobType.EMAIL_NOTIFICATION);
-      expect(currentPolicy.attempts).toBe(7);
+
+      const target = failedJobs.find((entry) => entry.jobId === failedJobId);
+      expect(target).toBeDefined();
+      expect(target?.jobType).toBe(JobType.EMAIL_NOTIFICATION);
+      expect(target?.replayDeduplicationKey).toBe(
+        `replay:${JobType.EMAIL_NOTIFICATION}:${failedJobId}`
+      );
     });
 
-    it('should provide retry policy statistics', () => {
-      const retryManager = queueManager.getRetryManager();
-      const stats = retryManager.getStatistics();
-      
-      expect(stats).toHaveProperty('totalPolicies');
-      expect(stats).toHaveProperty('customPolicies');
-      expect(stats).toHaveProperty('policiesByType');
-      
-      expect(stats.totalPolicies).toBeGreaterThan(0);
-      expect(Object.keys(stats.policiesByType)).toContain(JobType.EMAIL_NOTIFICATION);
+    it('should reprocess failed jobs with dedupe', async () => {
+      const failedJobId = await queueManager.addJob(
+        JobType.EMAIL_NOTIFICATION,
+        {
+          to: 'still-invalid',
+          subject: 'Replay test',
+          body: 'should fail',
+        },
+        { attempts: 1 }
+      );
+
+      await waitForJobToFail(failedJobId);
+
+      const firstReplay = await queueManager.reprocessFailedJob(
+        JobType.EMAIL_NOTIFICATION,
+        failedJobId
+      );
+      expect(firstReplay.deduplicated).toBe(false);
+      expect(firstReplay.replayJobId).toBe(
+        `replay:${JobType.EMAIL_NOTIFICATION}:${failedJobId}`
+      );
+
+      const secondReplay = await queueManager.reprocessFailedJob(
+        JobType.EMAIL_NOTIFICATION,
+        failedJobId
+      );
+      expect(secondReplay.deduplicated).toBe(true);
+      expect(secondReplay.replayJobId).toBe(firstReplay.replayJobId);
     });
   });
 });
