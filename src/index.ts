@@ -12,6 +12,9 @@ import { JobType, JobPayload, QueueManager } from './queue';
 import { authMiddleware, AuthenticatedRequest } from './middleware/auth';
 import { auditService } from './audit/service';
 
+// Validate environment at startup
+validateEnvironment();
+
 const queueManager = QueueManager.getInstance();
 
 const app = createApp({ includeTerminalHandlers: false });
@@ -40,6 +43,7 @@ function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFuncti
 
   next();
 }
+
 
 app.post('/api/v1/jobs', async (req: Request, res: Response) => {
   try {
