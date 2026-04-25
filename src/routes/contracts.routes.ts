@@ -2,18 +2,23 @@ import { Router } from 'express';
 import { ContractsController } from '../controllers/contracts.controller';
 import { validateSchema } from '../middleware/validate.middleware';
 import { createContractSchema } from '../modules/contracts/dto/contract.dto';
-import { createRateLimiter } from '../middleware/rateLimiter';
-import { rateLimitConfig } from '../config/rateLimit';
+import { validateQuery } from '../middleware/validation';
+import { paginationQuerySchema } from '../utils/pagination';
 
 const router = Router();
 
+router.get('/bounds', ContractsController.getBounds);
+
 router.get('/', ContractsController.getContracts);
+router.get('/:id', ContractsController.getContractById);
 
 router.post(
   '/',
-  createRateLimiter(rateLimitConfig.strict),
   validateSchema(createContractSchema),
   ContractsController.createContract,
 );
+
+// OCC-aware update: validate version field before delegating to controller
+router.patch('/:id', validateUpdateContract, ContractsController.updateContract);
 
 export default router;

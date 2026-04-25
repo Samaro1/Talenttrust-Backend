@@ -8,42 +8,22 @@
  * @security
  *  - express.json() body parser is scoped to this app instance only.
  *  - All routes return JSON; no HTML rendering surface.
- *  - Helmet-style headers should be added here when the dependency is
- *    introduced (tracked in docs/backend/security.md).
+ *  - CORS and Helmet security headers are applied via applySecurityMiddleware.
  */
 
 import express from 'express';
-import type { Request, Response, NextFunction } from 'express';
 import { healthRouter } from './routes/health';
 import contractsModuleRouter from './routes/contracts.routes';
 import reputationRouter from './routes/reputation.routes';
-import authRouter from './routes/auth.routes';
+import dependencyScanRouter from './routes/dependency-scan.routes';
 import { requestIdMiddleware } from './middleware/requestId';
-import { createRateLimiter } from './middleware/rateLimiter';
-import { rateLimitConfig, rateLimitStore } from './config/rateLimit';
+import { notFoundHandler, errorHandler } from './middleware/errorHandlers';
 
-/**
- * Creates and configures the Express application.
- *
- * @returns Configured Express app instance (not yet listening).
- */
-export function createApp(): express.Application {
-  const app = express();
+interface AppFactoryOptions {
+  includeTerminalHandlers?: boolean;
+}
 
-  // ── Middleware ────────────────────────────────────────────────────────────
-  app.use(express.json());
-  app.use(requestIdMiddleware);
-
-  // ── Routes ────────────────────────────────────────────────────────────────
-  app.use('/health', healthRouter);
-
-  // Auth routes: strict rate limiting to prevent credential stuffing
-  app.use('/api/v1/auth', createRateLimiter(rateLimitConfig.strict), authRouter);
-
-  // Standard tier: all /api endpoints get base rate limiting
-  app.use('/api/v1/contracts', createRateLimiter(rateLimitConfig.standard), contractsModuleRouter);
-  app.use('/api/v1/reputation', createRateLimiter(rateLimitConfig.standard), reputationRouter);
-
+export function attachTerminalHandlers(app: express.Application): void {
   // ── 404 handler ──────────────────────────────────────────────────────────
   app.use((_req: Request, res: Response) => {
     res.status(404).json({ error: 'Not Found' });
@@ -55,6 +35,33 @@ export function createApp(): express.Application {
     console.error(err.stack);
     res.status(500).json({ error: 'Internal Server Error' });
   });
+}
+
+/**
+ * Creates and configures the Express application.
+ *
+ * @returns Configured Express app instance (not yet listening).
+ */
+export function createApp(options: AppFactoryOptions = {}): express.Application {
+  const app = express();
+  const { includeTerminalHandlers = true } = options;
+
+  // ── Security Middleware ───────────────────────────────────────────────────
+  applySecurityMiddleware(app);
+
+  // ── Middleware ────────────────────────────────────────────────────────────
+  app.use(express.json());
+  app.use(requestIdMiddleware);
+
+  // ── Routes ────────────────────────────────────────────────────────────────
+  app.use('/health', healthRouter);
+  app.use('/api/v1/contracts', contractsModuleRouter);
+  app.use('/api/v1/reputation', reputationRouter);
+  app.use('/api/v1/dependency-scan', dependencyScanRouter);
+
+  if (includeTerminalHandlers) {
+    attachTerminalHandlers(app);
+  }
 
   return app;
 }
