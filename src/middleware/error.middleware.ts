@@ -11,7 +11,7 @@ import { sanitizeErrorMessage, safeMessageForCode } from '../errors/safeErrors';
  * @param res The Express Response.
  * @param next The Express NextFunction.
  */
-export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
+export const errorHandler = (err: any, req: Request, res: Response, _next: NextFunction) => {
   const statusCode = err.status || 500;
 
   // 500-level errors always get a generic message — the raw cause is internal.
