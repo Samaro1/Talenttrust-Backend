@@ -4,6 +4,14 @@ import { ContractBoundsError, CONTRACT_BOUNDS } from '../contracts/bounds';
 const mockGetAllContracts = jest.fn();
 const mockCreateContract = jest.fn();
 
+jest.mock('../db/database', () => ({
+  getDb: jest.fn().mockReturnValue({}),
+}));
+
+jest.mock('../repositories/contractRepository', () => ({
+  ContractRepository: jest.fn().mockImplementation(() => ({})),
+}));
+
 jest.mock('../services/contracts.service', () => {
   return {
     ContractsService: jest.fn().mockImplementation(() => {

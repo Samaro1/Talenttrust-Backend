@@ -10,11 +10,15 @@ const router = Router();
 router.get('/bounds', ContractsController.getBounds);
 
 router.get('/', ContractsController.getContracts);
+router.get('/:id', ContractsController.getContractById);
 
 router.post(
   '/',
   validateSchema(createContractSchema),
   ContractsController.createContract,
 );
+
+// OCC-aware update: validate version field before delegating to controller
+router.patch('/:id', validateUpdateContract, ContractsController.updateContract);
 
 export default router;

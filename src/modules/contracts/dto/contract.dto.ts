@@ -20,3 +20,13 @@ export const createContractSchema = z.object({
 registry.register('CreateContract', createContractSchema.shape.body);
 
 export type CreateContractDto = z.infer<typeof createContractSchema>['body'];
+
+export const updateContractSchema = z.object({
+  body: z.object({
+    version: z.number().int().min(0),
+    title: z.string().min(5).max(100).optional(),
+    status: z.enum(['draft', 'active', 'completed', 'disputed', 'cancelled']).optional(),
+  }),
+});
+
+export type UpdateContractDto = z.infer<typeof updateContractSchema>['body'];

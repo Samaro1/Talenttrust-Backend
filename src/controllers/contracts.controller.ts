@@ -1,9 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { ContractsService } from '../services/contracts.service';
+import { ContractRepository } from '../repositories/contractRepository';
+import { getDb } from '../db/database';
 import { CreateContractDto } from '../modules/contracts/dto/contract.dto';
 import { CONTRACT_BOUNDS, ContractBoundsError } from '../contracts/bounds';
 
-const contractsService = new ContractsService();
+const contractsService = new ContractsService(new ContractRepository(getDb()));
 
 /**
  * @dev Presentation layer for Contracts.
@@ -48,6 +50,23 @@ export class ContractsController {
           totalPages: Math.ceil(total / limit),
         },
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/v1/contracts/:id
+   * Fetch a single contract by ID (includes version field).
+   */
+  public static async getContractById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const contract = await contractsService.getContractById(req.params.id);
+      if (!contract) {
+        res.status(404).json({ status: 'error', error: { code: 'not_found', message: 'Not found' } });
+        return;
+      }
+      res.status(200).json({ status: 'success', data: contract });
     } catch (error) {
       next(error);
     }
